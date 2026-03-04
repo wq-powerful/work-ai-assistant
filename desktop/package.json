@@ -1,0 +1,52 @@
+{
+  "name": "work-ai-assistant",
+  "version": "1.0.0",
+  "description": "AI 工作助手 - 桌面版",
+  "main": "main.js",
+  "author": "SHUAI",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win",
+    "build:dir": "electron-builder --win --dir"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.shuai.work-ai-assistant",
+    "productName": "AI工作助手",
+    "directories": {
+      "output": "../release"
+    },
+    "extraResources": [
+      {
+        "from": "../backend/dist/backend",
+        "to": "backend",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "icon.ico",
+      "uninstallerIcon": "icon.ico",
+      "installerHeaderIcon": "icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "AI工作助手",
+      "artifactName": "AI工作助手-Setup-${version}.${ext}"
+    }
+  }
+}

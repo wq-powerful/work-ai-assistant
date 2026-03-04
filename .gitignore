@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.env
+*.pyc
+__pycache__/
+backend/data/uploads/
+backend/data/knowledge_store/
+backend/data/config.json
+.claude/
+
+# 构建输出（补充）
+release/
+backend/build/
+backend/dist/
+frontend/tsconfig.tsbuildinfo
