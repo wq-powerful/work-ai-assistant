@@ -1,7 +1,73 @@
 import json
 import os
 import sys
+from collections.abc import Mapping
 from pathlib import Path
+
+APP_NAME = "WorkAIAssistant"
+APP_DATA_DIR_ENV = "WORK_AI_ASSISTANT_DATA_DIR"
+DEFAULT_CORS_ORIGINS = (
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+)
+
+
+def _resolve_home_dir(env: Mapping[str, str]) -> Path | None:
+    home = (env.get("HOME") or "").strip()
+    if home:
+        return Path(home).expanduser()
+
+    expanded_home = Path(os.path.expanduser("~"))
+    if str(expanded_home) == "~":
+        return None
+    return expanded_home
+
+
+def get_packaged_app_data_dir(
+    *,
+    platform: str | None = None,
+    env: Mapping[str, str] | None = None,
+    executable_dir: Path | None = None,
+) -> Path:
+    environ = os.environ if env is None else env
+    platform_name = platform or sys.platform
+    exe_dir = EXE_DIR if executable_dir is None else executable_dir
+
+    override_dir = (environ.get(APP_DATA_DIR_ENV) or "").strip()
+    if override_dir:
+        return Path(override_dir).expanduser()
+
+    if platform_name == "win32":
+        base_dir = Path((environ.get("APPDATA") or "").strip() or exe_dir)
+    elif platform_name == "darwin":
+        home_dir = _resolve_home_dir(environ)
+        base_dir = home_dir / "Library" / "Application Support" if home_dir else exe_dir
+    else:
+        xdg_data_home = (environ.get("XDG_DATA_HOME") or "").strip()
+        if xdg_data_home:
+            base_dir = Path(xdg_data_home).expanduser()
+        else:
+            home_dir = _resolve_home_dir(environ)
+            base_dir = home_dir / ".local" / "share" if home_dir else exe_dir
+
+    return base_dir / APP_NAME
+
+
+def get_cors_origins(env: Mapping[str, str] | None = None) -> list[str]:
+    environ = os.environ if env is None else env
+    origins = list(DEFAULT_CORS_ORIGINS)
+    extra_origins = [
+        origin.strip()
+        for origin in (environ.get("APP_CORS_ALLOW_ORIGINS") or "").split(",")
+        if origin.strip()
+    ]
+
+    for origin in extra_origins:
+        if origin not in origins:
+            origins.append(origin)
+
+    return origins
+
 
 # Detect if running as a PyInstaller bundle
 IS_PACKAGED = getattr(sys, 'frozen', False)
@@ -10,8 +76,8 @@ if IS_PACKAGED:
     # When packaged: bundle dir is sys._MEIPASS, exe dir is where the .exe lives
     BUNDLE_DIR = Path(sys._MEIPASS)
     EXE_DIR = Path(sys.executable).parent
-    # Store user data in %APPDATA%/WorkAIAssistant (persists across updates)
-    APP_DATA_DIR = Path(os.environ.get("APPDATA", EXE_DIR)) / "WorkAIAssistant"
+    # Store user data in the platform-standard user data directory.
+    APP_DATA_DIR = get_packaged_app_data_dir(executable_dir=EXE_DIR)
     # Static frontend files are bundled inside the exe
     STATIC_DIR = BUNDLE_DIR / "static"
 else:

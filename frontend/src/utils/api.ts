@@ -1,6 +1,12 @@
 import type { AppSettings, ChatAttachment, FileInfo, ModelsResponse, UploadResult } from '../types';
 
-const BASE_URL = '/api';
+function normalizeBaseUrl(value: string | undefined): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  return trimmed.replace(/\/+$/, '');
+}
+
+const BASE_URL = normalizeBaseUrl(import.meta.env.VITE_API_BASE_URL) ?? '/api';
 const DEFAULT_TIMEOUT = 30000; // 30 seconds
 
 async function readResponseBody<T>(response: Response): Promise<T> {

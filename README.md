@@ -103,13 +103,22 @@ npm run build
 
 ### GitHub Pages 构建
 
-如果要构建 GitHub Pages 版本，请设置：
+GitHub Pages 只能托管前端静态文件，因此需要一个额外部署的后端 API。构建前请先准备：
+
+- 一个可通过 HTTPS 访问的后端地址，例如 `https://your-backend.example.com/api`
+- 后端环境变量 `APP_CORS_ALLOW_ORIGINS`，至少包含你的 Pages 来源，例如 `https://<user>.github.io`
+
+如果要本地构建 GitHub Pages 版本，请设置：
 
 ```bash
-VITE_BASE_PATH=/work-ai-assistant/ npm run build
+VITE_BASE_PATH=/work-ai-assistant/ \
+VITE_API_BASE_URL=https://your-backend.example.com/api \
+npm run build:frontend
 ```
 
-默认情况下，前端构建基础路径为 `/`。
+仓库内置的 GitHub Actions workflow 会读取仓库变量 `GITHUB_PAGES_API_BASE_URL` 作为 `VITE_API_BASE_URL`。未配置该变量时，workflow 会直接失败，避免发布一个无法访问后端的页面。
+
+默认情况下，前端构建基础路径为 `/`，API 地址为同源 `/api`。
 
 ## 默认模型配置
 

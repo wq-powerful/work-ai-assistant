@@ -60,6 +60,11 @@ function resolvePythonCommand() {
 
 /** Resolve how to start the backend for the current environment */
 function getBackendCommand(port) {
+  const backendEnv = {
+    ...process.env,
+    WORK_AI_ASSISTANT_DATA_DIR: app.getPath('userData'),
+  };
+
   if (app.isPackaged) {
     const executableName = process.platform === 'win32' ? 'backend.exe' : 'backend';
     const executablePath = path.join(process.resourcesPath, 'backend', executableName);
@@ -72,6 +77,7 @@ function getBackendCommand(port) {
       command: executablePath,
       args: ['--port', String(port)],
       options: {
+        env: backendEnv,
         stdio: 'pipe',
         windowsHide: true,
       },
@@ -83,6 +89,7 @@ function getBackendCommand(port) {
     args: ['main.py', '--port', String(port)],
     options: {
       cwd: path.join(__dirname, '..', 'backend'),
+      env: backendEnv,
       stdio: 'pipe',
       windowsHide: true,
     },
