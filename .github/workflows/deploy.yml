@@ -15,7 +15,24 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      should_deploy: ${{ steps.check.outputs.should_deploy }}
+    steps:
+      - id: check
+        run: |
+          if [ -n "${{ vars.GITHUB_PAGES_API_BASE_URL }}" ]; then
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+            echo "GitHub Pages deploy enabled."
+          else
+            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping GitHub Pages deploy because repository variable GITHUB_PAGES_API_BASE_URL is not configured."
+          fi
+
   build:
+    needs: preflight
+    if: needs.preflight.outputs.should_deploy == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -48,12 +65,23 @@ jobs:
           path: frontend/dist
 
   deploy:
+    if: needs.preflight.outputs.should_deploy == 'true'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-    needs: build
+    needs:
+      - preflight
+      - build
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  skip:
+    needs: preflight
+    if: needs.preflight.outputs.should_deploy != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain skipped deploy
+        run: echo "GitHub Pages deploy skipped because GITHUB_PAGES_API_BASE_URL is not configured."

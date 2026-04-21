@@ -116,7 +116,7 @@ VITE_API_BASE_URL=https://your-backend.example.com/api \
 npm run build:frontend
 ```
 
-仓库内置的 GitHub Actions workflow 会读取仓库变量 `GITHUB_PAGES_API_BASE_URL` 作为 `VITE_API_BASE_URL`。未配置该变量时，workflow 会直接失败，避免发布一个无法访问后端的页面。
+仓库内置的 GitHub Actions workflow 会读取仓库变量 `GITHUB_PAGES_API_BASE_URL` 作为 `VITE_API_BASE_URL`。未配置该变量时，workflow 会跳过 GitHub Pages 部署，避免发布一个无法访问后端的页面。
 
 默认情况下，前端构建基础路径为 `/`，API 地址为同源 `/api`。
 
