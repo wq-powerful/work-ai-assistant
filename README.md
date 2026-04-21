@@ -1,107 +1,146 @@
-# Work AI Assistant (AI 工作助手)
+# Work AI Assistant（AI 工作助手）
 
-A self-hosted, full-stack AI assistant powered by RAG (Retrieval-Augmented Generation). Upload your work documents, and the AI will answer questions based on your knowledge base.
+这是一个基于 RAG（检索增强生成）的自托管全栈 AI 工作助手。你可以上传工作文档，系统会基于知识库内容进行问答。
 
-## Features
+## 功能特性
 
-- **Knowledge Base Management**: Upload PDF, Word, Excel, PPT, TXT, MD, CSV files
-- **RAG-Powered Chat**: AI answers grounded in your uploaded documents
-- **Streaming Responses**: Real-time token-by-token display via SSE
-- **Light/Dark Theme**: Fully polished dual theme support
-- **Configurable Settings**: API endpoint, model, temperature, and more
+- **知识库管理**：支持上传 PDF、Word、Excel、PPT、TXT、MD、CSV 文件
+- **RAG 智能问答**：回答优先基于已上传文档内容
+- **流式响应**：通过 SSE 实时展示生成结果
+- **明暗主题**：支持浅色与深色主题切换
+- **可配置设置**：支持配置模型地址、模型名称、温度等参数
+- **桌面端打包**：支持将前端、后端和 Electron 桌面端一起构建
 
-## Tech Stack
+## 技术栈
 
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React 18 + TypeScript + Vite + TailwindCSS |
-| Backend | Python FastAPI |
-| Embedding | scikit-learn TF-IDF |
-| Storage | File-based (JSON + numpy) |
-| LLM | OpenAI-compatible API |
+| 层级 | 技术 |
+|------|------|
+| 前端 | React 18 + TypeScript + Vite + TailwindCSS |
+| 后端 | Python FastAPI |
+| 向量检索 | scikit-learn TF-IDF |
+| 存储 | 文件存储（JSON + numpy/scipy） |
+| 大模型接口 | OpenAI 兼容 API |
+| 桌面端 | Electron |
 
-## Requirements
+## 环境要求
 
-- **Python**: 3.10 or higher
-- **Node.js**: 18 or higher
-- **npm**: 9 or higher
+- **Python**：3.10 或更高版本
+- **Node.js**：18 或更高版本
+- **npm**：9 或更高版本
 
-## Quick Start (快速开始)
+## 快速开始
 
-### 1. Clone the project
+### 1. 克隆仓库
 
 ```bash
 git clone <repo-url>
 cd work-ai-assistant
 ```
 
-### 2. Start the backend (启动后端)
-
-```bash
-npm run install:backend
-npm run dev:backend
-```
-
-The backend will start at `http://localhost:8000`.
-
-### 3. Start the frontend (启动前端)
-
-Open a new terminal:
-
-```bash
-npm run install:frontend
-npm run dev:frontend
-```
-
-The frontend will start at `http://localhost:5173`.
-
-For GitHub Pages builds, set `VITE_BASE_PATH=/work-ai-assistant/`. The default base path is `/`.
-
-## Build
+### 2. 安装依赖
 
 ```bash
 npm run install:all
+```
+
+该命令会安装：
+
+- 后端 Python 依赖
+- 前端 npm 依赖
+- 桌面端 npm 依赖
+
+### 3. 启动后端
+
+```bash
+npm run dev:backend
+```
+
+后端默认启动在 `http://localhost:8000`。
+
+### 4. 启动前端
+
+打开一个新的终端窗口后执行：
+
+```bash
+npm run dev:frontend
+```
+
+前端默认启动在 `http://localhost:5173`。
+
+### 5. 打开并使用
+
+1. 在浏览器中访问 `http://localhost:5173`
+2. 进入 **知识库** 页面上传工作文档
+3. 进入 **智能对话** 页面开始提问
+4. 在 **设置** 页面中配置模型地址、模型名称和其他参数
+
+## 构建说明
+
+### 构建桌面端
+
+```bash
 npm run build:desktop
 ```
 
-`npm run build:desktop` now builds frontend and backend before packaging the desktop app for the current host platform.
+该命令会先构建前端和后端，再打包当前宿主平台对应的桌面应用。
 
-### 4. Open and use (打开使用)
+### 一键完整构建
 
-1. Open `http://localhost:5173` in your browser
-2. Navigate to **知识库** (Knowledge Base) and upload your work documents
-3. Go to **智能对话** (Chat) and start asking questions
-4. Configure API settings in **设置** (Settings) if needed
-
-## Default API Configuration
-
-- **API Base URL**: `https://xiaozhi.aifuture.icu`
-- **Model**: `gpt-4o`
-- **Temperature**: `0.7`
-
-All settings can be changed in the Settings panel.
-
-## Project Structure
-
+```bash
+npm run build
 ```
+
+该命令会完成：
+
+1. 前端生产构建
+2. 后端 PyInstaller 打包
+3. Electron 桌面端打包
+
+构建产物位置：
+
+- 后端产物：`backend/dist/backend`
+- 桌面端产物：`release/`
+
+### GitHub Pages 构建
+
+如果要构建 GitHub Pages 版本，请设置：
+
+```bash
+VITE_BASE_PATH=/work-ai-assistant/ npm run build
+```
+
+默认情况下，前端构建基础路径为 `/`。
+
+## 默认模型配置
+
+- **API 地址**：`https://xiaozhi.aifuture.icu`
+- **模型名称**：`gpt-4o`
+- **温度**：`0.7`
+
+这些参数都可以在设置页面中修改。
+
+## 项目结构
+
+```text
 work-ai-assistant/
 ├── README.md
-├── frontend/          # React + TypeScript frontend
+├── frontend/              # React + TypeScript 前端
 │   ├── src/
-│   │   ├── components/  # UI components
-│   │   ├── contexts/    # React contexts
-│   │   ├── hooks/       # Custom hooks
-│   │   ├── types/       # TypeScript types
-│   │   └── utils/       # Utilities
-│   └── ...
-├── backend/           # Python FastAPI backend
-│   ├── routers/       # API route handlers
-│   ├── services/      # Business logic
-│   ├── models/        # Pydantic schemas
-│   └── data/          # File-based storage
-└── scripts/           # Startup scripts
+│   │   ├── components/    # UI 组件
+│   │   ├── contexts/      # React 上下文
+│   │   ├── hooks/         # 自定义 Hook
+│   │   ├── types/         # TypeScript 类型
+│   │   └── utils/         # 工具函数
+├── backend/               # FastAPI 后端
+│   ├── routers/           # API 路由
+│   ├── services/          # 业务逻辑
+│   ├── models/            # Pydantic 模型
+│   ├── tests/             # 后端测试
+│   └── data/              # 本地数据目录
+├── desktop/               # Electron 桌面端
+└── scripts/               # 构建与辅助脚本
 ```
 
-## License
+## 许可证
 
 MIT
