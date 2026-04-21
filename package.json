@@ -4,15 +4,18 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "concurrently -n backend,frontend -c blue,green \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "dev:backend": "cd backend && python main.py",
+    "dev:backend": "cd backend && node ../scripts/python-runner.js main.py",
     "dev:frontend": "cd frontend && npm run dev",
     "dev:desktop": "cd desktop && npm start",
-    "install:all": "cd frontend && npm install && cd ../desktop && npm install",
-    "setup": "pip install -r backend/requirements.txt && cd frontend && npm install",
+    "install:backend": "node scripts/python-runner.js -m pip install -r backend/requirements.txt",
+    "install:frontend": "cd frontend && npm install",
+    "install:desktop": "cd desktop && npm install",
+    "install:all": "npm run install:backend && npm run install:frontend && npm run install:desktop",
+    "setup": "npm run install:all",
     "build": "node scripts/build.js",
     "build:frontend": "cd frontend && npm run build",
-    "build:backend": "cd backend && python -m PyInstaller app.spec --clean --noconfirm",
-    "build:desktop": "cd desktop && npm run build"
+    "build:backend": "cd backend && node ../scripts/python-runner.js -m PyInstaller app.spec --clean --noconfirm",
+    "build:desktop": "npm run build:frontend && npm run build:backend && cd desktop && npm run build"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"

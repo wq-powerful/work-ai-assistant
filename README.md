@@ -38,9 +38,8 @@ cd work-ai-assistant
 ### 2. Start the backend (启动后端)
 
 ```bash
-cd backend
-pip install -r requirements.txt
-python main.py
+npm run install:backend
+npm run dev:backend
 ```
 
 The backend will start at `http://localhost:8000`.
@@ -50,12 +49,22 @@ The backend will start at `http://localhost:8000`.
 Open a new terminal:
 
 ```bash
-cd frontend
-npm install
-npm run dev
+npm run install:frontend
+npm run dev:frontend
 ```
 
 The frontend will start at `http://localhost:5173`.
+
+For GitHub Pages builds, set `VITE_BASE_PATH=/work-ai-assistant/`. The default base path is `/`.
+
+## Build
+
+```bash
+npm run install:all
+npm run build:desktop
+```
+
+`npm run build:desktop` now builds frontend and backend before packaging the desktop app for the current host platform.
 
 ### 4. Open and use (打开使用)
 

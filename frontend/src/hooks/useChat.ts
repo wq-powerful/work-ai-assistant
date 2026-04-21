@@ -14,6 +14,40 @@ export function useChat(conversationState: ConversationState) {
 
   const messages = activeConversation?.messages || [];
 
+  const isEmptyAssistantMessage = (message: ChatMessage) =>
+    message.role === 'assistant' &&
+    !message.content.trim() &&
+    !(message.thinking || '').trim();
+
+  const finalizeAssistantMessage = useCallback(
+    (
+      conversationId: string,
+      assistantId: string,
+      options?: { fallbackContent?: string; removeIfEmpty?: boolean }
+    ) => {
+      updateMessages(conversationId, (prev) =>
+        prev.flatMap((message) => {
+          if (message.id !== assistantId) {
+            return [message];
+          }
+
+          const nextMessage = {
+            ...message,
+            content: message.content || options?.fallbackContent || '',
+            isStreaming: false,
+          };
+
+          if (options?.removeIfEmpty && isEmptyAssistantMessage(nextMessage)) {
+            return [];
+          }
+
+          return [nextMessage];
+        })
+      );
+    },
+    [updateMessages]
+  );
+
   const sendMessage = useCallback(
     async (content: string, attachments?: ChatAttachment[]) => {
       if (!content.trim() || isStreaming) return;
@@ -100,21 +134,15 @@ export function useChat(conversationState: ConversationState) {
               );
             },
             onDone: () => {
-              updateMessages(convId!, (prev) =>
-                prev.map((m) =>
-                  m.id === assistantMsg.id ? { ...m, isStreaming: false } : m
-                )
-              );
+              abortControllerRef.current = null;
+              finalizeAssistantMessage(convId!, assistantMsg.id);
               setIsStreaming(false);
             },
             onError: (error) => {
-              updateMessages(convId!, (prev) =>
-                prev.map((m) =>
-                  m.id === assistantMsg.id
-                    ? { ...m, content: m.content || `错误：${error}`, isStreaming: false }
-                    : m
-                )
-              );
+              abortControllerRef.current = null;
+              finalizeAssistantMessage(convId!, assistantMsg.id, {
+                fallbackContent: `错误：${error}`,
+              });
               setIsStreaming(false);
             },
           },
@@ -122,27 +150,20 @@ export function useChat(conversationState: ConversationState) {
         );
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') {
-          // Stream was intentionally aborted
-          updateMessages(convId!, (prev) =>
-            prev.map((m) =>
-              m.id === assistantMsg.id ? { ...m, isStreaming: false } : m
-            )
-          );
+          abortControllerRef.current = null;
+          finalizeAssistantMessage(convId!, assistantMsg.id, { removeIfEmpty: true });
           setIsStreaming(false);
           return;
         }
         const errorMessage = err instanceof Error ? err.message : '未知错误';
-        updateMessages(convId!, (prev) =>
-          prev.map((m) =>
-            m.id === assistantMsg.id
-              ? { ...m, content: `连接错误：${errorMessage}`, isStreaming: false }
-              : m
-          )
-        );
+        abortControllerRef.current = null;
+        finalizeAssistantMessage(convId!, assistantMsg.id, {
+          fallbackContent: `连接错误：${errorMessage}`,
+        });
         setIsStreaming(false);
       }
     },
-    [activeId, activeConversation, isStreaming, updateMessages, createConversation]
+    [activeId, activeConversation, isStreaming, updateMessages, createConversation, finalizeAssistantMessage]
   );
 
   const stopStreaming = useCallback(() => {
@@ -151,10 +172,20 @@ export function useChat(conversationState: ConversationState) {
       abortControllerRef.current = null;
     }
     setIsStreaming(false);
-    // Also mark any streaming message as done
+    // Remove empty assistant placeholders when the stream is stopped manually.
     if (activeId) {
       updateMessages(activeId, (prev) =>
-        prev.map((m) => (m.isStreaming ? { ...m, isStreaming: false } : m))
+        prev.flatMap((message) => {
+          if (!message.isStreaming) {
+            return [message];
+          }
+
+          if (isEmptyAssistantMessage(message)) {
+            return [];
+          }
+
+          return [{ ...message, isStreaming: false }];
+        })
       );
     }
   }, [activeId, updateMessages]);

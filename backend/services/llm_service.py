@@ -6,6 +6,11 @@ import httpx
 from config import load_config
 
 
+def _sse_json(payload: dict) -> str:
+    """Serialize an SSE JSON payload safely."""
+    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
 def _could_be_partial(tag: str, candidate: str) -> bool:
     """Check if candidate is a non-complete prefix of tag."""
     return len(candidate) < len(tag) and tag.startswith(candidate)
@@ -103,7 +108,9 @@ async def stream_chat_completion(
                 if response.status_code != 200:
                     error_body = await response.aread()
                     error_text = error_body.decode("utf-8", errors="replace")
-                    yield f'data: {{"error": "API returned status {response.status_code}: {error_text}"}}\n\n'
+                    yield _sse_json(
+                        {"error": f"API returned status {response.status_code}: {error_text}"}
+                    )
                     return
 
                 # State for <think> tag parsing (Qwen thinking models)
@@ -119,10 +126,7 @@ async def stream_chat_completion(
                             # Flush any remaining buffer
                             if tag_buffer:
                                 msg_type = "thinking" if in_think_block else "content"
-                                chunk_data = json.dumps(
-                                    {msg_type: tag_buffer}, ensure_ascii=False
-                                )
-                                yield f"data: {chunk_data}\n\n"
+                                yield _sse_json({msg_type: tag_buffer})
                             yield "data: [DONE]\n\n"
                             return
                         try:
@@ -135,10 +139,7 @@ async def stream_chat_completion(
                             # Extract thinking/reasoning content (DeepSeek, o1/o3, etc.)
                             thinking = delta.get("reasoning_content") or delta.get("reasoning", "")
                             if thinking:
-                                chunk_data = json.dumps(
-                                    {"thinking": thinking}, ensure_ascii=False
-                                )
-                                yield f"data: {chunk_data}\n\n"
+                                yield _sse_json({"thinking": thinking})
 
                             # Parse <think> tags in content (Qwen thinking models)
                             content = delta.get("content", "")
@@ -147,20 +148,14 @@ async def stream_chat_completion(
                                     content, in_think_block, tag_buffer
                                 )
                                 for msg_type, segment_text in segments:
-                                    chunk_data = json.dumps(
-                                        {msg_type: segment_text}, ensure_ascii=False
-                                    )
-                                    yield f"data: {chunk_data}\n\n"
+                                    yield _sse_json({msg_type: segment_text})
                         except json.JSONDecodeError:
                             continue
 
                 # Flush any remaining buffer at stream end
                 if tag_buffer:
                     msg_type = "thinking" if in_think_block else "content"
-                    chunk_data = json.dumps(
-                        {msg_type: tag_buffer}, ensure_ascii=False
-                    )
-                    yield f"data: {chunk_data}\n\n"
+                    yield _sse_json({msg_type: tag_buffer})
 
         yield "data: [DONE]\n\n"
 
@@ -168,17 +163,17 @@ async def stream_chat_completion(
         # Client disconnected, exit gracefully
         return
     except httpx.ConnectTimeout:
-        yield f'data: {{"error": "连接超时：无法连接到 API 服务器，请检查 API 地址配置"}}\n\n'
+        yield _sse_json({"error": "连接超时：无法连接到 API 服务器，请检查 API 地址配置"})
         yield "data: [DONE]\n\n"
     except httpx.ReadTimeout:
-        yield f'data: {{"error": "读取超时：API 服务器响应时间过长"}}\n\n'
+        yield _sse_json({"error": "读取超时：API 服务器响应时间过长"})
         yield "data: [DONE]\n\n"
     except httpx.ConnectError:
-        yield f'data: {{"error": "连接失败：无法连接到 API 服务器，请检查网络和 API 地址"}}\n\n'
+        yield _sse_json({"error": "连接失败：无法连接到 API 服务器，请检查网络和 API 地址"})
         yield "data: [DONE]\n\n"
     except httpx.HTTPError as e:
-        yield f'data: {json.dumps({"error": f"HTTP 请求错误：{str(e)}"}, ensure_ascii=False)}\n\n'
+        yield _sse_json({"error": f"HTTP 请求错误：{str(e)}"})
         yield "data: [DONE]\n\n"
     except Exception as e:
-        yield f'data: {json.dumps({"error": f"未知错误：{str(e)}"}, ensure_ascii=False)}\n\n'
+        yield _sse_json({"error": f"未知错误：{str(e)}"})
         yield "data: [DONE]\n\n"

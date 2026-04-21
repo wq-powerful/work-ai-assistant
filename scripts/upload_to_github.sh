@@ -4,19 +4,42 @@
 
 set -e
 
-PROJECT_DIR="/mnt/c/Users/SHUAI/Desktop/work-ai-assistant"
-GITHUB_USER="wq-powerful"
-REPO_NAME="work-ai-assistant"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+GITHUB_USER="${GITHUB_USER:-wq-powerful}"
+REPO_NAME="${REPO_NAME:-$(basename "$PROJECT_DIR")}"
+AUTH_HEADERS_FILE="$(mktemp)"
+GIT_ASKPASS_SCRIPT="$(mktemp)"
+
+cleanup() {
+    rm -f "$AUTH_HEADERS_FILE" "$GIT_ASKPASS_SCRIPT"
+}
+
+trap cleanup EXIT
 
 if [ -z "$GITHUB_TOKEN" ]; then
     echo "❌ 错误：\$GITHUB_TOKEN 未设置，请先运行：read -s GITHUB_TOKEN"
     exit 1
 fi
 
+cat > "$AUTH_HEADERS_FILE" <<EOF
+Authorization: token $GITHUB_TOKEN
+Accept: application/vnd.github.v3+json
+EOF
+
+cat > "$GIT_ASKPASS_SCRIPT" <<'EOF'
+#!/bin/sh
+case "$1" in
+  *Username*) printf '%s\n' "${GITHUB_USER:?}" ;;
+  *Password*) printf '%s\n' "${GITHUB_TOKEN:?}" ;;
+  *) exit 1 ;;
+esac
+EOF
+chmod 700 "$GIT_ASKPASS_SCRIPT"
+
 echo "=== 步骤 1：在 GitHub 创建仓库 ==="
 RESPONSE=$(curl -s -X POST \
-    -H "Authorization: token $GITHUB_TOKEN" \
-    -H "Accept: application/vnd.github.v3+json" \
+    -H @"$AUTH_HEADERS_FILE" \
     https://api.github.com/user/repos \
     -d "{
         \"name\": \"$REPO_NAME\",
@@ -49,8 +72,13 @@ git add .
 echo "--- 当前提交文件列表 ---"
 git status --short
 echo "------------------------"
-git commit -m "feat: initial commit - AI assistant with RAG, FastAPI, React and Electron"
-echo "✅ 提交完成"
+
+if git diff --cached --quiet; then
+    echo "⚠️  暂无可提交变更，跳过 commit"
+else
+    git commit -m "feat: initial commit - AI assistant with RAG, FastAPI, React and Electron"
+    echo "✅ 提交完成"
+fi
 
 echo ""
 echo "=== 步骤 4：关联远程仓库并推送 ==="
@@ -58,17 +86,13 @@ git remote remove origin 2>/dev/null || true
 git remote add origin "https://github.com/$GITHUB_USER/$REPO_NAME.git"
 git branch -M main
 
-git push "https://$GITHUB_USER:$GITHUB_TOKEN@github.com/$GITHUB_USER/$REPO_NAME.git" main
-
-# 推送成功后，恢复不含 token 的 remote URL
-git remote set-url origin "https://github.com/$GITHUB_USER/$REPO_NAME.git"
+GIT_ASKPASS="$GIT_ASKPASS_SCRIPT" GIT_TERMINAL_PROMPT=0 git push -u origin main
 echo "✅ 推送成功"
 
 echo ""
 echo "=== 步骤 5：设置仓库 Topics 标签 ==="
 curl -s -X PUT \
-    -H "Authorization: token $GITHUB_TOKEN" \
-    -H "Accept: application/vnd.github.v3+json" \
+    -H @"$AUTH_HEADERS_FILE" \
     "https://api.github.com/repos/$GITHUB_USER/$REPO_NAME/topics" \
     -d '{"names": ["ai", "rag", "fastapi", "react", "electron", "python", "typescript", "llm", "self-hosted"]}' \
     | grep -q '"names"' && echo "✅ Topics 设置成功" || echo "⚠️  Topics 设置失败（不影响主要功能）"

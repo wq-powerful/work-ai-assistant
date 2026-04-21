@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
 import type { AppSettings, ModelInfo } from '../types';
 import { fetchSettings, updateSettings as apiUpdateSettings, fetchAvailableModels } from '../utils/api';
+import { syncTheme } from './ThemeContext';
 
 const DEFAULT_SETTINGS: AppSettings = {
   api_base_url: 'https://xiaozhi.aifuture.icu',
@@ -86,6 +87,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       const normalized = normalizeSettings(data.settings);
       setSettings(normalized);
       safeSaveSettings(normalized);
+      syncTheme(normalized.theme);
     } catch {
       // Use localStorage fallback
     } finally {
@@ -102,6 +104,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     const normalized = normalizeSettings(data.settings);
     setSettings(normalized);
     safeSaveSettings(normalized);
+    syncTheme(normalized.theme);
   };
 
   return (

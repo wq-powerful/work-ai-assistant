@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import type { ChatAttachment } from '../../types';
 import { parseChatFile } from '../../utils/api';
 import { formatFileSize } from '../../utils/helpers';
+import { showToast } from '../common/Toast';
 
 interface ChatInputProps {
   onSend: (message: string, attachments?: ChatAttachment[]) => void;
@@ -54,8 +55,7 @@ export default function ChatInput({ onSend, disabled, isStreaming, onStop }: Cha
       try {
         const result = await parseChatFile(file);
         if ('error' in result && result.error) {
-          // Show error but continue with other files
-          console.error(`File parse error: ${result.error}`);
+          showToast('error', `${file.name} 解析失败：${result.error}`);
           continue;
         }
         newAttachments.push({
@@ -66,7 +66,8 @@ export default function ChatInput({ onSend, disabled, isStreaming, onStop }: Cha
           extracted_text: result.extracted_text,
         });
       } catch (err) {
-        console.error('File upload failed:', err);
+        const message = err instanceof Error ? err.message : '文件解析失败';
+        showToast('error', `${file.name} 解析失败：${message}`);
       }
     }
 

@@ -7,8 +7,8 @@
   "license": "MIT",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --win",
-    "build:dir": "electron-builder --win --dir"
+    "build": "electron-builder",
+    "build:dir": "electron-builder --dir"
   },
   "devDependencies": {
     "electron": "^33.0.0",
@@ -36,6 +36,19 @@
         }
       ],
       "icon": "icon.ico"
+    },
+    "mac": {
+      "icon": "icon.png",
+      "target": [
+        "dmg"
+      ]
+    },
+    "linux": {
+      "icon": "icon.png",
+      "target": [
+        "AppImage"
+      ],
+      "category": "Utility"
     },
     "nsis": {
       "oneClick": false,

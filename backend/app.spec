@@ -11,17 +11,20 @@ backend_dir = os.path.dirname(os.path.abspath(SPEC))
 project_dir = os.path.dirname(backend_dir)
 frontend_dist = os.path.join(project_dir, 'frontend', 'dist')
 desktop_icon = os.path.join(project_dir, 'desktop', 'icon.ico')
+datas = [
+    # Bundle frontend dist as 'static/'
+    (frontend_dist, 'static'),
+]
+
+env_file = os.path.join(backend_dir, '.env')
+if os.path.exists(env_file):
+    datas.append((env_file, '.'))
 
 a = Analysis(
     ['main.py'],
     pathex=[backend_dir],
     binaries=[],
-    datas=[
-        # Bundle frontend dist as 'static/'
-        (frontend_dist, 'static'),
-        # Bundle .env if exists
-        ('.env', '.') if os.path.exists(os.path.join(backend_dir, '.env')) else (None, None),
-    ],
+    datas=datas,
     hiddenimports=[
         'uvicorn.logging',
         'uvicorn.loops',
@@ -48,9 +51,6 @@ a = Analysis(
     cipher=block_cipher,
     noarchive=False,
 )
-
-# Filter out None datas entries
-a.datas = [(d, s, t) for d, s, t in a.datas if d is not None]
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 

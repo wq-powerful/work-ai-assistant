@@ -9,21 +9,32 @@
  * Usage:  node scripts/build.js
  */
 
-const { execSync } = require('child_process');
+const { execSync, spawnSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const { resolvePythonCommand } = require('./python-runner');
 
 const ROOT = path.resolve(__dirname, '..');
 const FRONTEND = path.join(ROOT, 'frontend');
 const BACKEND = path.join(ROOT, 'backend');
 const DESKTOP = path.join(ROOT, 'desktop');
+const NPM = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const PYTHON = resolvePythonCommand();
 
-function run(cmd, cwd = ROOT) {
+function run(command, args = [], cwd = ROOT) {
   console.log(`\n${'='.repeat(60)}`);
-  console.log(`  Running: ${cmd}`);
+  console.log(`  Running: ${[command, ...args].join(' ')}`);
   console.log(`  CWD:     ${cwd}`);
   console.log('='.repeat(60));
-  execSync(cmd, { cwd, stdio: 'inherit', shell: true });
+  const result = spawnSync(command, args, { cwd, stdio: 'inherit' });
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  if (result.status !== 0) {
+    process.exit(result.status ?? 1);
+  }
 }
 
 function ensureDir(dir) {
@@ -33,7 +44,7 @@ function ensureDir(dir) {
 // ── Step 1: Build Frontend ────────────────────────────────
 
 console.log('\n[1/3] Building frontend...');
-run('npm run build', FRONTEND);
+run(NPM, ['run', 'build'], FRONTEND);
 
 const distDir = path.join(FRONTEND, 'dist');
 if (!fs.existsSync(distDir)) {
@@ -48,13 +59,13 @@ console.log('\n[2/3] Packaging backend with PyInstaller...');
 
 // Ensure PyInstaller is installed
 try {
-  execSync('python -m PyInstaller --version', { stdio: 'pipe' });
+  execSync(`${PYTHON} -m PyInstaller --version`, { stdio: 'pipe' });
 } catch {
   console.log('Installing PyInstaller...');
-  run('pip install pyinstaller', BACKEND);
+  run(PYTHON, ['-m', 'pip', 'install', 'pyinstaller'], BACKEND);
 }
 
-run('python -m PyInstaller app.spec --clean --noconfirm', BACKEND);
+run(PYTHON, ['-m', 'PyInstaller', 'app.spec', '--clean', '--noconfirm'], BACKEND);
 
 const backendDist = path.join(BACKEND, 'dist', 'backend');
 if (!fs.existsSync(backendDist)) {
@@ -69,7 +80,7 @@ console.log('\n[3/3] Building Electron installer...');
 
 // Install desktop dependencies if needed
 if (!fs.existsSync(path.join(DESKTOP, 'node_modules'))) {
-  run('npm install', DESKTOP);
+  run(NPM, ['install'], DESKTOP);
 }
 
 // Generate a placeholder icon if missing
@@ -79,7 +90,7 @@ if (!fs.existsSync(iconPath)) {
   console.log('         To add a custom icon, place icon.ico (256x256) in the desktop/ folder.');
 }
 
-run('npm run build', DESKTOP);
+run(NPM, ['run', 'build'], DESKTOP);
 
 console.log('\n' + '='.repeat(60));
 console.log('  BUILD COMPLETE!');

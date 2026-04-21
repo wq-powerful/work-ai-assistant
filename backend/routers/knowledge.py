@@ -4,6 +4,7 @@ from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, HTTPException
 
 from config import get_storage_dirs
+from services.file_processor import FileTooLargeError, stream_upload_to_path
 from services.knowledge_service import process_uploaded_file, get_all_files, delete_file, reprocess_all_files
 
 router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
@@ -38,14 +39,16 @@ async def upload_files(files: list[UploadFile] = File(...)):
             counter += 1
 
         try:
-            with open(file_path, "wb") as buffer:
-                content = await file.read()
-                buffer.write(content)
-
-            file_size = len(content)
+            file_size = await stream_upload_to_path(file, file_path)
             file_info = process_uploaded_file(file_path.name, file_path, file_size)
             results.append(file_info)
 
+        except FileTooLargeError as e:
+            if file_path.exists():
+                file_path.unlink()
+            if len(files) == 1:
+                raise HTTPException(status_code=413, detail=str(e))
+            errors.append({"filename": filename, "error": str(e)})
         except Exception as e:
             # Clean up partial upload
             if file_path.exists():

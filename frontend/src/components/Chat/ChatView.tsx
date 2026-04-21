@@ -16,6 +16,7 @@ export default function ChatView({ conversationState }: ChatViewProps) {
   const { settings, availableModels, modelsLoading, updateSettings, refreshModels } = useSettings();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [modelDraft, setModelDraft] = useState(settings.model);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -32,13 +33,30 @@ export default function ChatView({ conversationState }: ChatViewProps) {
     return () => document.removeEventListener('click', handler);
   }, [showExportMenu]);
 
-  const handleModelChange = async (model: string) => {
+  useEffect(() => {
+    setModelDraft(settings.model);
+  }, [settings.model]);
+
+  const saveModel = async (model: string) => {
+    const nextModel = model.trim();
+    if (!nextModel || nextModel === settings.model) {
+      setModelDraft(settings.model);
+      return;
+    }
+
     try {
-      await updateSettings({ model });
+      await updateSettings({ model: nextModel });
     } catch (err) {
+      setModelDraft(settings.model);
       const message = err instanceof Error ? err.message : '模型切换失败';
       showToast('error', message);
     }
+  };
+
+  const handleModelDraftKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    await saveModel(modelDraft);
   };
 
   return (
@@ -51,7 +69,7 @@ export default function ChatView({ conversationState }: ChatViewProps) {
           {availableModels.length > 0 ? (
             <select
               value={settings.model}
-              onChange={(e) => handleModelChange(e.target.value)}
+              onChange={(e) => saveModel(e.target.value)}
               disabled={isStreaming}
               className="text-xs bg-transparent border border-[var(--border-color)] rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 transition-all disabled:opacity-50 cursor-pointer"
             >
@@ -65,14 +83,27 @@ export default function ChatView({ conversationState }: ChatViewProps) {
               ))}
             </select>
           ) : (
-            <input
-              type="text"
-              value={settings.model}
-              onChange={(e) => handleModelChange(e.target.value)}
-              disabled={isStreaming}
-              placeholder="输入模型名称"
-              className="text-xs bg-transparent border border-[var(--border-color)] rounded-lg px-2 py-1.5 w-40 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 transition-all disabled:opacity-50"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={modelDraft}
+                onChange={(e) => setModelDraft(e.target.value)}
+                onBlur={() => void saveModel(modelDraft)}
+                onKeyDown={(e) => void handleModelDraftKeyDown(e)}
+                disabled={isStreaming}
+                placeholder="输入模型名称"
+                className="text-xs bg-transparent border border-[var(--border-color)] rounded-lg px-2 py-1.5 w-40 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 transition-all disabled:opacity-50"
+              />
+              <button
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => void saveModel(modelDraft)}
+                disabled={isStreaming || !modelDraft.trim() || modelDraft.trim() === settings.model}
+                title="确认模型"
+                className="p-1 rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all disabled:opacity-50"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+              </button>
+            </div>
           )}
           {/* 刷新模型列表按钮 */}
           <button

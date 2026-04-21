@@ -1,5 +1,7 @@
 const { app, BrowserWindow, dialog, Tray, Menu } = require('electron');
 const { spawn } = require('child_process');
+const { spawnSync } = require('child_process');
+const fs = require('fs');
 const path = require('path');
 const net = require('net');
 const http = require('http');
@@ -45,36 +47,55 @@ function waitForBackend(port, timeoutMs = 30000) {
   });
 }
 
-/** Resolve the path to the backend executable */
-function getBackendPath() {
-  if (app.isPackaged) {
-    // In production: extraResources/backend/backend.exe
-    return path.join(process.resourcesPath, 'backend', 'backend.exe');
+function resolvePythonCommand() {
+  for (const command of ['python3', 'python']) {
+    const result = spawnSync(command, ['--version'], { stdio: 'ignore' });
+    if (!result.error && result.status === 0) {
+      return command;
+    }
   }
-  // In development: run Python directly
-  return null;
+
+  throw new Error('Python interpreter not found. Tried python3, python.');
+}
+
+/** Resolve how to start the backend for the current environment */
+function getBackendCommand(port) {
+  if (app.isPackaged) {
+    const executableName = process.platform === 'win32' ? 'backend.exe' : 'backend';
+    const executablePath = path.join(process.resourcesPath, 'backend', executableName);
+
+    if (!fs.existsSync(executablePath)) {
+      throw new Error(`Packaged backend executable not found: ${executablePath}`);
+    }
+
+    return {
+      command: executablePath,
+      args: ['--port', String(port)],
+      options: {
+        stdio: 'pipe',
+        windowsHide: true,
+      },
+    };
+  }
+
+  return {
+    command: resolvePythonCommand(),
+    args: ['main.py', '--port', String(port)],
+    options: {
+      cwd: path.join(__dirname, '..', 'backend'),
+      stdio: 'pipe',
+      windowsHide: true,
+    },
+  };
 }
 
 // ── Backend Process ──────────────────────────────────────
 
 async function startBackend() {
   backendPort = await findFreePort();
-  const backendExe = getBackendPath();
+  const backendCommand = getBackendCommand(backendPort);
 
-  if (backendExe) {
-    // Production: spawn the packaged backend exe
-    backendProcess = spawn(backendExe, ['--port', String(backendPort)], {
-      stdio: 'pipe',
-      windowsHide: true,
-    });
-  } else {
-    // Development: run Python
-    backendProcess = spawn('python', ['main.py', '--port', String(backendPort)], {
-      cwd: path.join(__dirname, '..', 'backend'),
-      stdio: 'pipe',
-      windowsHide: true,
-    });
-  }
+  backendProcess = spawn(backendCommand.command, backendCommand.args, backendCommand.options);
 
   backendProcess.stdout.on('data', (data) => {
     console.log(`[backend] ${data.toString().trim()}`);

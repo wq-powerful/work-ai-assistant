@@ -1,7 +1,55 @@
+import codecs
 import csv
 import io
+import os
 import re
+import uuid
 from pathlib import Path
+
+MAX_STREAMED_FILE_SIZE = 50 * 1024 * 1024
+
+
+class FileTooLargeError(ValueError):
+    """Raised when an uploaded file exceeds the configured size limit."""
+
+
+def _build_temp_path(destination: Path) -> Path:
+    return destination.parent / f".{destination.name}.{uuid.uuid4().hex}.tmp"
+
+
+async def stream_upload_to_path(
+    upload_file,
+    destination: Path,
+    *,
+    max_bytes: int = MAX_STREAMED_FILE_SIZE,
+    chunk_size: int = 1024 * 1024,
+) -> int:
+    """Stream an uploaded file to disk via a temp file, then atomically replace."""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = _build_temp_path(destination)
+    written = 0
+
+    try:
+        with open(temp_path, "wb") as buffer:
+            while True:
+                chunk = await upload_file.read(chunk_size)
+                if not chunk:
+                    break
+
+                written += len(chunk)
+                if written > max_bytes:
+                    raise FileTooLargeError("文件大小超过 50 MiB 限制")
+
+                buffer.write(chunk)
+
+            buffer.flush()
+            os.fsync(buffer.fileno())
+
+        os.replace(temp_path, destination)
+        return written
+    except Exception:
+        temp_path.unlink(missing_ok=True)
+        raise
 
 
 def extract_text(file_path: Path) -> str:
@@ -101,13 +149,39 @@ def _extract_docx(file_path: Path) -> str:
 
 
 def _extract_text(file_path: Path) -> str:
-    encodings = ["utf-8", "gbk", "gb2312", "latin-1"]
-    for enc in encodings:
+    raw_bytes = file_path.read_bytes()
+    if not raw_bytes:
+        return ""
+
+    bom_encodings = (
+        (codecs.BOM_UTF8, "utf-8-sig"),
+        (codecs.BOM_UTF16_LE, "utf-16"),
+        (codecs.BOM_UTF16_BE, "utf-16"),
+    )
+    for bom, encoding in bom_encodings:
+        if raw_bytes.startswith(bom):
+            return raw_bytes.decode(encoding)
+
+    if b"\x00" in raw_bytes:
+        even_nulls = raw_bytes[::2].count(0)
+        odd_nulls = raw_bytes[1::2].count(0)
+        if odd_nulls > even_nulls:
+            try:
+                return raw_bytes.decode("utf-16-le")
+            except UnicodeDecodeError:
+                pass
+        if even_nulls > odd_nulls:
+            try:
+                return raw_bytes.decode("utf-16-be")
+            except UnicodeDecodeError:
+                pass
+
+    for enc in ("utf-8-sig", "gbk", "gb2312"):
         try:
-            return file_path.read_text(encoding=enc)
+            return raw_bytes.decode(enc)
         except (UnicodeDecodeError, LookupError):
             continue
-    return file_path.read_text(encoding="utf-8", errors="replace")
+    return raw_bytes.decode("utf-8", errors="replace")
 
 
 def _extract_csv(file_path: Path) -> str:

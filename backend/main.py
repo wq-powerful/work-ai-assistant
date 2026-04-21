@@ -26,20 +26,49 @@ app.include_router(knowledge.router)
 app.include_router(settings.router)
 
 
+def get_packaged_static_dir():
+    if not (IS_PACKAGED and STATIC_DIR):
+        return None
+
+    static_dir = STATIC_DIR.resolve()
+    assets_dir = static_dir / "assets"
+    index_file = static_dir / "index.html"
+
+    if not static_dir.is_dir():
+        print(f"Packaged static directory not found: {static_dir}")
+        return None
+
+    if not assets_dir.is_dir():
+        print(f"Packaged assets directory not found: {assets_dir}")
+        return None
+
+    if not index_file.is_file():
+        print(f"Packaged index file not found: {index_file}")
+        return None
+
+    return static_dir
+
+
+PACKAGED_STATIC_DIR = get_packaged_static_dir()
+
+
 @app.get("/api/health")
 async def health_check():
     return {"status": "ok", "message": "Work AI Assistant backend is running"}
 
 
 # In packaged mode, serve frontend static files
-if IS_PACKAGED and STATIC_DIR and STATIC_DIR.exists():
+if PACKAGED_STATIC_DIR:
     # Serve static assets (js, css, images, etc.)
-    app.mount("/assets", StaticFiles(directory=str(STATIC_DIR / "assets")), name="static-assets")
+    app.mount("/assets", StaticFiles(directory=str(PACKAGED_STATIC_DIR / "assets")), name="static-assets")
 
     # Serve other static files (favicon, logo, etc.)
     @app.get("/logo.svg")
     async def serve_logo():
-        return FileResponse(str(STATIC_DIR / "logo.svg"))
+        logo_path = PACKAGED_STATIC_DIR / "logo.svg"
+        if not logo_path.is_file():
+            raise HTTPException(status_code=404, detail="Not Found")
+        return FileResponse(str(logo_path))
 
     # SPA fallback: serve index.html for all non-API routes
     @app.get("/{full_path:path}")
@@ -47,10 +76,10 @@ if IS_PACKAGED and STATIC_DIR and STATIC_DIR.exists():
         # Don't intercept API routes
         if full_path.startswith("api/"):
             raise HTTPException(status_code=404, detail="Not Found")
-        file_path = STATIC_DIR / full_path
+        file_path = PACKAGED_STATIC_DIR / full_path
         if file_path.is_file():
             return FileResponse(str(file_path))
-        return FileResponse(str(STATIC_DIR / "index.html"))
+        return FileResponse(str(PACKAGED_STATIC_DIR / "index.html"))
 
 
 if __name__ == "__main__":

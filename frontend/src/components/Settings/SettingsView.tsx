@@ -23,10 +23,14 @@ export default function SettingsView() {
     setApiKeyInput('');
   }, [settings]);
 
+  useEffect(() => {
+    setForm((prev) => (prev.theme === theme ? prev : { ...prev, theme }));
+  }, [theme]);
+
   const handleSave = async () => {
     setSaving(true);
     try {
-      const updates: Partial<AppSettings> = { ...form };
+      const updates: Partial<AppSettings> = { ...form, theme };
       // Only send api_key if user actually typed a new one
       if (apiKeyInput) {
         updates.api_key = apiKeyInput;
@@ -36,9 +40,6 @@ export default function SettingsView() {
       delete updates.api_key_masked;
       delete updates.effective_knowledge_base_path;
       await updateSettings(updates);
-      if (form.theme !== theme) {
-        setTheme(form.theme);
-      }
       setApiKeyInput('');
       showToast('success', '设置已保存');
     } catch {
@@ -57,6 +58,10 @@ export default function SettingsView() {
       }
       return next;
     });
+  };
+
+  const handleThemeChange = (nextTheme: AppSettings['theme']) => {
+    setTheme(nextTheme);
   };
 
   return (
@@ -254,14 +259,14 @@ export default function SettingsView() {
           </h3>
           <div className="flex gap-3">
             <button
-              onClick={() => updateField('theme', 'light')}
+              onClick={() => handleThemeChange('light')}
               className={`relative flex-1 p-4 rounded-xl border-2 transition-all duration-200 ${
-                form.theme === 'light'
+                theme === 'light'
                   ? 'border-brand-orange bg-orange-50 dark:bg-orange-900/10'
                   : 'border-[var(--border-color)] hover:border-[var(--text-tertiary)]'
               }`}
             >
-              {form.theme === 'light' && (
+              {theme === 'light' && (
                 <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-brand-orange flex items-center justify-center">
                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                 </div>
@@ -275,14 +280,14 @@ export default function SettingsView() {
               </div>
             </button>
             <button
-              onClick={() => updateField('theme', 'dark')}
+              onClick={() => handleThemeChange('dark')}
               className={`relative flex-1 p-4 rounded-xl border-2 transition-all duration-200 ${
-                form.theme === 'dark'
+                theme === 'dark'
                   ? 'border-brand-orange bg-orange-50 dark:bg-orange-900/10'
                   : 'border-[var(--border-color)] hover:border-[var(--text-tertiary)]'
               }`}
             >
-              {form.theme === 'dark' && (
+              {theme === 'dark' && (
                 <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-brand-orange flex items-center justify-center">
                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                 </div>

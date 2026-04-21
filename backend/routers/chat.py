@@ -11,7 +11,7 @@ from config import get_storage_dirs, load_config
 from models.schemas import ChatRequest
 from services.knowledge_service import search_knowledge_base, get_all_files
 from services.llm_service import stream_chat_completion
-from services.file_processor import extract_text
+from services.file_processor import FileTooLargeError, extract_text, stream_upload_to_path
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -127,9 +127,7 @@ async def parse_file(file: UploadFile = File(...)):
     temp_path = uploads_dir / f"_chat_temp_{temp_id}{ext}"
 
     try:
-        content = await file.read()
-        temp_path.write_bytes(content)
-        file_size = len(content)
+        file_size = await stream_upload_to_path(file, temp_path)
 
         # Extract text
         extracted = extract_text(temp_path)
@@ -148,6 +146,8 @@ async def parse_file(file: UploadFile = File(...)):
         }
     except HTTPException:
         raise
+    except FileTooLargeError as e:
+        raise HTTPException(status_code=413, detail=str(e)) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"文件解析失败: {str(e)}")
     finally:

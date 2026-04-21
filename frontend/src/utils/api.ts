@@ -3,6 +3,19 @@ import type { AppSettings, ChatAttachment, FileInfo, ModelsResponse, UploadResul
 const BASE_URL = '/api';
 const DEFAULT_TIMEOUT = 30000; // 30 seconds
 
+async function readResponseBody<T>(response: Response): Promise<T> {
+  if (response.status === 204 || response.status === 205 || !response.body) {
+    return undefined as T;
+  }
+
+  const text = await response.text();
+  if (!text.trim()) {
+    return undefined as T;
+  }
+
+  return JSON.parse(text) as T;
+}
+
 /**
  * Fetch wrapper with error handling and timeout.
  */
@@ -18,10 +31,13 @@ async function request<T>(url: string, options?: RequestInit & { timeout?: numbe
       signal: controller.signal,
     });
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || `请求失败 (${response.status})`);
+      const errorData =
+        (await readResponseBody<{ detail?: string }>(response).catch(() => undefined)) ?? {};
+      throw new Error(
+        typeof errorData.detail === 'string' ? errorData.detail : `请求失败 (${response.status})`
+      );
     }
-    return response.json();
+    return readResponseBody<T>(response);
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
       throw new Error('请求超时，请检查网络连接');
@@ -136,47 +152,67 @@ export async function streamChat(
   let buffer = '';
   let metaReceived = false;
 
+  const processLine = (rawLine: string) => {
+    const line = rawLine.replace(/\r$/, '');
+    if (!line.startsWith('data: ')) return false;
+    const data = line.slice(6).trim();
+
+    if (data === '[DONE]') {
+      callbacks.onDone();
+      return true;
+    }
+
+    try {
+      const parsed = JSON.parse(data);
+
+      if (parsed.meta && !metaReceived) {
+        metaReceived = true;
+        callbacks.onMeta(parsed.meta);
+        return false;
+      }
+
+      if (parsed.thinking) {
+        callbacks.onThinking(parsed.thinking);
+      }
+
+      if (parsed.content) {
+        callbacks.onToken(parsed.content);
+      }
+
+      if (parsed.error) {
+        callbacks.onError(parsed.error);
+        return true;
+      }
+    } catch {
+      // Skip unparseable lines
+    }
+
+    return false;
+  };
+
   try {
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        buffer += decoder.decode();
+        break;
+      }
 
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
       buffer = lines.pop() || '';
 
       for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const data = line.slice(6).trim();
-
-        if (data === '[DONE]') {
-          callbacks.onDone();
+        if (processLine(line)) {
           return;
         }
+      }
+    }
 
-        try {
-          const parsed = JSON.parse(data);
-
-          if (parsed.meta && !metaReceived) {
-            metaReceived = true;
-            callbacks.onMeta(parsed.meta);
-            continue;
-          }
-
-          if (parsed.thinking) {
-            callbacks.onThinking(parsed.thinking);
-          }
-
-          if (parsed.content) {
-            callbacks.onToken(parsed.content);
-          }
-
-          if (parsed.error) {
-            callbacks.onError(parsed.error);
-            return;
-          }
-        } catch {
-          // Skip unparseable lines
+    if (buffer.trim()) {
+      for (const line of buffer.split('\n')) {
+        if (processLine(line)) {
+          return;
         }
       }
     }
